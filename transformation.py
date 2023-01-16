@@ -1,7 +1,13 @@
 import re
+import numpy as np
 import pandas as pd
 import argparse
 from collections import defaultdict
+
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+
 
 QUERY_DICT = {"성장환경":["삶","학창","부모님","별명","몰입","소중한","사건","인생","학교생활","대인관계","생활신조","가정","배경","특성","성장과정","성장 과정"],
              "전공,과목" : ["전공","과목","배경","학과","교육","프로그래밍에"],
@@ -172,6 +178,26 @@ def make_achieve_query(result, string):
     return array
 
 
+def remove_duplicate(data):
+    answer = data[["answer"]].values.tolist()
+    answer = sum(answer, [])
+
+    tfidf_matrix = TfidfVectorizer().fit_transform(answer)
+    cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
+    
+    sim_list = []
+
+    for c in range(len(cosine_sim)):
+        temp = np.where(cosine_sim[c]>0.9)
+        for i in temp[0][1:]:
+            if i in sim_list:
+                continue       
+            qa_df = qa_df.drop(i,axis=0)
+            sim_list.append(i)
+
+    return data.reset_index(inplace=True, drop=True)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Cover-letter transformation"
@@ -188,6 +214,7 @@ def insert_category(content_array, x):
 
 
 def main(args):
+    cnt = 0
     transformer = Transformer(args.root_dir)
     user = transformer._user_preprocess()
     question_answer = transformer._question_answer_preprocess()
@@ -215,8 +242,9 @@ def main(args):
         cnt+=1
     
     question_answer['question_category'] = question_answer['content_id'].apply(lambda x: insert_category(content_array, x))
+    question_answer = remove_duplicate(question_answer)
 
-
+    
 if __name__ == '__main__':
     args = parse_args()
     main(args)
