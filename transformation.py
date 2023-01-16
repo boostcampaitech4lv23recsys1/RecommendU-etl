@@ -1,129 +1,62 @@
 import re
+import json
+import numpy as np
 import pandas as pd
 import argparse
 from collections import defaultdict
+from .preprocessor import Preprocessor
 
-class Transformer:
-    def __init__(self, data_path):
-        self.data_path = data_path
-        self.data = pd.read_csv(self.data_path, sep='\t', encoding='utf-8-sig')
-
-
-    def make_user(self, i):
-        str_id = str(i)
-        padding = "0" * (6-len(str_id))
-        return padding + str_id
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
 
 
-    def integer_check(self, char):
-        integer_array = [str(i) for i in range(10)]
-        if char in integer_array:
-            return True
-        return False
+import torch
+import torch.nn as nn
+from transformers import AutoTokenizer, AutoModel, AutoModelForSeq2SeqLM, pipeline
 
 
-    def _user_preprocess(self):
-        user_dict = {}
-        job_category = {}
-        for i in range(len(self.data)):
-            user_id = self.make_user(i+1)
-            company = self.data.iloc[i]['company']
-            season_job = self.data.iloc[i]['season'].split(" ")
-            spec = self.data.iloc[i]['spec']
-            spec=spec[2:-2].split("', '")
-            season = season_job[0] +" "+ season_job[1]
-            job = season_job[3:][0]
-            school = spec[0]
-            if school =="고졸":
-                major = ""
-                extra_spec = spec[1:]
+
+def make_query(result, string):
+    array = []
+    for i in range(len(result)):
+        content_id = result.iloc[i]['content_id']
+        question = result.iloc[i]['question']
+        if string in question:
+            array.append(content_id)
+    return array
+
+
+def make_achieve_query(result, string):
+    array = []
+    for i in range(len(result)):
+        content_id = result.iloc[i]['content_id']
+        question = result.iloc[i]['question']
+        if string in question:
+            if "삼성취업" in question or "특성과" in question:
+                pass
             else:
-                major = spec[1]
-                extra_spec = spec[2:]
-            # print(school,major,extra_spec)
-            user_dict[user_id] = [company,season,job,school,major,extra_spec]
-            job_category['user_id'] = job_category.get(user_id,"")+job
-        result = pd.DataFrame(user_dict.values(),columns=['company','season','job','school','major','extra_spec'])
-        result['user_id'] = user_dict.keys()
-        return result
+                array.append(content_id)
+    return array
 
 
-    def _question_preprocess(self, data):
-        result_array = []
-        remove_char1 = ']'
-        remove_char2 = ')'
-        questions_split = data['questions'].split('!@#')
-        for content in questions_split:
-            content = content.strip()
-            result = ""
-            if content[-1] == remove_char1:
-                count=-1
-                flag =0
-                for k in range(len(content[:-1]),-1,-1):
-                    count-=1
-                    if content[k] == "[":
-                        break
-                    if self.integer_check(content[k]):
-                        flag=1
-                if flag == 1:
-                    result= content[:count+1]
-                else:
-                    result = content
-                result_array.append(result)
-            elif content[-1] == remove_char2:
-                count=-1
-                flag =0
-                for k in range(len(content[:-1]),-1,-1):
-                    count-=1
-                    if content[k] == "(":
-                        break
-                    if self.integer_check(content[k]):
-                        flag=1
-                if flag == 1:
-                    result= content[:count+1]
-                else:
-                    result = content
-                result_array.append(result)
-            else:
-                result_array.append(content)
-        return result_array
+def remove_duplicate(data):
+    answer = data[["answer"]].values.tolist()
+    answer = sum(answer, [])
 
+    tfidf_matrix = TfidfVectorizer().fit_transform(answer)
+    cosine_sim = linear_kernel(tfidf_matrix, tfidf_matrix)
+    
+    sim_list = []
 
-    def _answer_preprocess(self, data):
-        result_array = []
-        answers_split = data['answers'].split('!@#')
-        for content in answers_split:
-            split_by_enter = content.split("\n")
-            result="".join(split_by_enter[:-2])
-            result = re.sub(r'좋은점 [1-9]', "", result)
-            result = re.sub(r'아쉬운점 [1-9]', "", result)
-            result_array.append(result)
-        return result_array
-        
+    for c in range(len(cosine_sim)):
+        temp = np.where(cosine_sim[c]>0.9)
+        for i in temp[0][1:]:
+            if i in sim_list:
+                continue       
+            qa_df = qa_df.drop(i,axis=0)
+            sim_list.append(i)
 
-    def _question_answer_preprocess(self):
-        question_dict = {}
-        cnt=0
-        for i in range(len(self.data)):
-            data = self.data.iloc[i]
-            url = data['url']
-            user_id = self.make_user(i+1)
-            question = self._question_preprocess(data)
-            answer = self._answer_preprocess(data)
-            new_question = []
-            new_answer = []
-            for i in question:
-                if i != "":
-                    new_question.append(i)
-            for i in answer:
-                if i !="":
-                    new_answer.append(i)
-            for i in range(len(answer)):
-                question_dict[cnt] = [user_id, self.make_user(cnt+1), question[i], answer[i], url]
-                cnt+=1
-            question_frame = pd.DataFrame(question_dict.values(), columns = ['user_id','content_id','question','answer','url'])
-            question_frame['question'] = question_frame['question'].apply(lambda x:x.replace("!@",""))
-        return question_frame
+    return data.reset_index(inplace=True, drop=True)
 
 
 def parse_args():
@@ -134,13 +67,69 @@ def parse_args():
     return parser.parse_args()    
 
 
+def insert_category(content_array, x):
+    if x not in content_array.keys():
+        return 'x'
+    else:
+        return content_array[x]
+
+def summarize_answers(data):
+    answers = list(data['answer'])
+    model_name = "psyche/KoT5-summarization"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+    summarizer = pipeline("summarization", model=model_name, tokenizer= model_name, batch_size=16, device = device)
+
+    summary = summarizer(answers, max_length=512)
+    summary_result = [x['summary_text'] for x in summary]
+    data['summary'] = summary_result
+    return data
+
+
+def add_job_type(job_type : dict, job: str):
+    for key, value in job_type.items():
+        if job in value:
+            return key
+
+
 def main(args):
-    transformer = Transformer(args.root_dir)
+    cnt = 0
+    transformer = Preprocessor(args.root_dir)
     user = transformer._user_preprocess()
     question_answer = transformer._question_answer_preprocess()
+
+    with open("./queryset.json") as f:
+        QUERY_DICT = json.load(f)
+    with open("./job_type.json") as f:
+        JOB_TYPE = json.load(f)
+
+    total_array = {}
+    for key in QUERY_DICT.keys():
+        key_array = []
+        if key == "어려움 극복/목표 달성(성공/실패)":
+            for word in QUERY_DICT[key]:
+                temp_array = make_achieve_query(question_answer, word)
+                key_array.extend(temp_array)
+        else:
+            for word in QUERY_DICT[key]:
+                temp_array = make_query(question_answer, word)
+                key_array.extend(temp_array)
+        print(f"{key} : {len(set(key_array))}")
+        total_array[key] = list(set(key_array))
+
+    cnt=1
+    content_array = defaultdict(list)
+    for key in total_array.keys():
+        array = total_array[key]
+        for content in array:
+            content_array[content].append(cnt)
+        cnt+=1
     
+    question_answer['question_category'] = question_answer['content_id'].apply(lambda x: insert_category(content_array, x))
+    question_answer = remove_duplicate(question_answer)
 
-
+    user["job_type"] = user["job"].apply(lambda x: add_job_type(JOB_TYPE, x))
+    
 if __name__ == '__main__':
     args = parse_args()
     main(args)
