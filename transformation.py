@@ -9,6 +9,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
 
+import torch
+import torch.nn as nn
+from transformers import AutoTokenizer, AutoModel, AutoModelForSeq2SeqLM, pipeline
+
 QUERY_DICT = {"성장환경":["삶","학창","부모님","별명","몰입","소중한","사건","인생","학교생활","대인관계","생활신조","가정","배경","특성","성장과정","성장 과정"],
              "전공,과목" : ["전공","과목","배경","학과","교육","프로그래밍에"],
              "취미,특기":["취미","특기","좋아하는 일"],
@@ -212,6 +216,17 @@ def insert_category(content_array, x):
     else:
         return content_array[x]
 
+def summarize_answers(data):
+    answers = list(data['answer'])
+    model_name = "psyche/KoT5-summarization"
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
+    summarizer = pipeline("summarization", model=model_name, tokenizer= model_name, batch_size=16, device = device)
+
+    summary = summarizer(answers, max_length=512)
+    summary_result = [x['summary_text'] for x in summary]
+    data['summary'] = summary_result
+    return data
 
 def main(args):
     cnt = 0
@@ -243,7 +258,6 @@ def main(args):
     
     question_answer['question_category'] = question_answer['content_id'].apply(lambda x: insert_category(content_array, x))
     question_answer = remove_duplicate(question_answer)
-
     
 if __name__ == '__main__':
     args = parse_args()
