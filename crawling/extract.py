@@ -1,13 +1,19 @@
+from tqdm import tqdm
+
 import jobkorea
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 
-file = open('jobkorea_link.txt','r')
+file = open('major_jobkorea_link.txt','r')
 driver = webdriver.Chrome("chromedriver")
 jobkorea.login_protocol(driver=driver)
+urls = file.readlines()
 
-while True: # 7354개
-    file_url = file.readline()
-    if file_url == "":
+cnt = 0
+file_save = open("./major_jobkorea_crawl.txt", "w")
+for url in tqdm(urls):
+    preprocessed_url = url.split('?')[0]
+    file_save = jobkorea.self_introduction_crawl(driver, preprocessed_url, file_save)
+    cnt += 1
+    if cnt == 100:
         break
-    jobkorea.self_introduction_crawl(driver=driver,file_url=file_url)
+file_save.close()

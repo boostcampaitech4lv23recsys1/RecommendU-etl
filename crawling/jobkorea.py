@@ -3,12 +3,15 @@ from selenium.webdriver.common.by import By
 
 def count_pages(driver:webdriver.Chrome) -> int:
     cnt = 1
+    driver.get("https://www.jobkorea.co.kr/starter/passassay?schTxt=&Page=1")
+    driver.find_element(By.XPATH, "/html/body/div[6]/div/button").click()
     while True:
-        driver.get("https://www.jobkorea.co.kr/starter/passassay?schTxt=&Page=" + str(cnt))
+        driver.implicitly_wait(5)
+        driver.get("https://www.jobkorea.co.kr/starter/PassAssay?schCType=13&schGroup=&isFilterChecked=1&Page=" + str(cnt))
+        driver.implicitly_wait(5)
         pages = driver.find_element(By.XPATH, "/html/body/div[@id='wrap']/div[@id='container']/div[@class='stContainer']/div[@class='starListsWrap ctTarget']/div[@class='tplPagination']")
-        driver.implicitly_wait(3)
+        driver.implicitly_wait(5)
 
-        # print(pages.find_elements(By.TAG_NAME, 'p'))
         if len(pages.find_elements(By.TAG_NAME, 'p')) == 2:
             cnt += 10
             continue
@@ -25,11 +28,11 @@ def count_pages(driver:webdriver.Chrome) -> int:
 
 def link_crawl(driver:webdriver.Chrome):
     array= []
-    f = open("jobkorea_link.txt",'w')
+    f = open("major_jobkorea_link.txt",'w')
     page_count = count_pages(driver)
-
+    print(f"[CHECK PAGE COUNT]: {page_count}")
     for page_num in range(1, page_count):
-        driver.get("https://www.jobkorea.co.kr/starter/passassay?schTxt=&Page=" + str(page_num))
+        driver.get("https://www.jobkorea.co.kr/starter/PassAssay?schCType=13&schGroup=&isFilterChecked=1&Page=" + str(page_num))
         paper_list = driver.find_element(By.XPATH, "/html/body/div[@id='wrap']/div[@id='container']/div[@class='stContainer']/div[@class='starListsWrap ctTarget']/ul")
         print(paper_list)
         driver.implicitly_wait(3)
@@ -52,39 +55,63 @@ def login_protocol(driver:webdriver.Chrome): # 로그인해야지 로그인창�
     driver.find_element(By.ID,"lb_pw").send_keys("wanynu78!")
     driver.find_element(By.XPATH,"/html/body/div[5]/div/div[1]/div[1]/ul/li[1]/div/form/fieldset/div[1]/button").click()
     driver.implicitly_wait(3)
-    # driver.find_element(By.ID,"closeIncompleteResume")
-    # driver.implicitly_wait(3)
+
     print("login success")
 
-def self_introduction_crawl(driver:webdriver.Chrome,file_url):
-    print("current URL : "+ file_url)
-    driver.get(file_url)
-    user_info = driver.find_element(By.XPATH,'//*[@id="container"]/div[2]/div[1]/div[1]/h2')
-    company = user_info.find_element(By.TAG_NAME,'a')
-    print(company.text) # 지원회사
-    season= user_info.find_element(By.TAG_NAME,'em')
-    print(season.text) # 지원시기
-    specification=driver.find_element(By.CLASS_NAME,'specLists')
-    spec_array = specification.text.split('\n')
-    print(spec_array[:-2]) #스펙
-    paper = driver.find_element(By.CLASS_NAME,"qnaLists")
-    questions = paper.find_elements(By.TAG_NAME,'dt')
-    print("question")
-    for index in questions:
-        question = index.find_element(By.CLASS_NAME,'tx')
-        if question.text=="":
-            index.find_element(By.TAG_NAME,'button').click()
+def self_introduction_crawl(driver:webdriver.Chrome, file_url, file):
+    try:
+        driver.get(file_url)
+        user_info = driver.find_element(By.XPATH,'//*[@id="container"]/div[2]/div[1]/div[1]/h2')
+        company = user_info.find_element(By.TAG_NAME,'a')
+
+        season= user_info.find_element(By.TAG_NAME,'em')
+
+        specification=driver.find_element(By.CLASS_NAME,'specLists')
+        spec_array = specification.text.split('\n')
+
+        paper = driver.find_element(By.CLASS_NAME,"qnaLists")
+        questions = paper.find_elements(By.TAG_NAME,'dt')
+        questions_list = []
+        for index in questions:
             question = index.find_element(By.CLASS_NAME,'tx')
-            print(question.text)
-        else:
-            print(question.text) # 자소서 질문 모아놓은 리스트
-    driver.implicitly_wait(3)
-    answers = paper.find_elements(By.TAG_NAME,'dd')
-    driver.implicitly_wait(3)
-    print('answer')
-    for index in range(len(answers)):
-        answer =answers[index].find_element(By.CLASS_NAME,'tx')
-        if answer.text == "":
-            questions[index].find_element(By.TAG_NAME,'button').click()
+            if question.text=="":
+                index.find_element(By.TAG_NAME,'button').click()
+                question = index.find_element(By.CLASS_NAME,'tx')
+            questions_list.append(question)
+
+        answers = paper.find_elements(By.TAG_NAME,'dd')
+        driver.implicitly_wait(3)
+        print(f"[URL]: {file_url}")
+        print(f"[COMPANY]: {company.text}")
+        print(f"[SEASON]: {season.text}")
+        print(f"[SPEC]: {spec_array}")
+        print(f"[VIEW]: {spec_array[-2].replace(',', '')}")
+        
+
+        file.write(f"<<start>>\n")
+        file.write(f"<url>{file_url}</url>\n")
+        file.write(f"<company>{company.text}</company>\n")
+        file.write(f"<season>{season.text}</season>\n")
+        file.write(f"<spec>{spec_array}</spec>\n")
+        file.write(f"<view>{spec_array[-2].replace(',', '')}</view>\n")
+
+        for index in range(len(answers)):
             answer =answers[index].find_element(By.CLASS_NAME,'tx')
-        print(answer.text) # 자소서 답변 모아놓은 리스트
+            if answer.text == "":
+                questions[index].find_element(By.TAG_NAME,'button').click()
+                answer = answers[index].find_element(By.CLASS_NAME,'tx')
+            print(f"[QUESTION - {index + 1}]: {questions_list[index].text}")
+            print(f"[ANSWER - {index + 1}]: {answer.text}\n")
+            file.write(f"<tag_q>{questions_list[index].text}</tag_q>\n")
+            file.write(f"<tag_a>{answer.text}</tag_a>\n")
+        print("-" * 250)
+        print('\n\n\n')
+        
+        file.write(f"<<end>>\n")
+    
+    except Exception as e:
+        print("current URL : ", file_url)
+        print(f"[ERROR OCCUR URL]: str{e}")
+        print("\n\n")
+
+    return file
