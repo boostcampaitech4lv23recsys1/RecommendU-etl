@@ -2,3 +2,6 @@ logs
 airflow.cfg
 airflow.db
 webserver_config.py
+crawling/major_jobkorea_link.txt
+airflow-webserver.pid
+*/__pycache__

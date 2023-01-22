@@ -6,6 +6,7 @@ def count_pages(driver:webdriver.Chrome) -> int:
     driver.get("https://www.jobkorea.co.kr/starter/passassay?schTxt=&Page=1")
     driver.find_element(By.XPATH, "/html/body/div[6]/div/button").click()
     while True:
+        print(cnt)
         driver.implicitly_wait(5)
         driver.get("https://www.jobkorea.co.kr/starter/PassAssay?schCType=13&schGroup=&isFilterChecked=1&Page=" + str(cnt))
         driver.implicitly_wait(5)

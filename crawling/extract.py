@@ -3,8 +3,15 @@ from tqdm import tqdm
 import jobkorea
 from selenium import webdriver
 
+options = webdriver.ChromeOptions()
+options.add_argument('--headless')
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+options.add_argument('user-agent={0}'.format(user_agent))
+
+driver = webdriver.Chrome("/opt/ml/chromedriver", options = options)
+
 file = open('major_jobkorea_link.txt','r')
-driver = webdriver.Chrome("chromedriver")
 jobkorea.login_protocol(driver=driver)
 urls = file.readlines()
 
