@@ -59,6 +59,7 @@ def login_protocol(driver:webdriver.Chrome): # 로그인해야지 로그인창�
 
     print("login success")
 
+
 def self_introduction_crawl(driver:webdriver.Chrome, file_url, file):
     try:
         driver.get(file_url)

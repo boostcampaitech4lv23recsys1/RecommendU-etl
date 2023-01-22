@@ -36,4 +36,4 @@ with DAG(dag_id = 'etlPipeline', default_args = default_args, schedule_interval 
 
     task0 >> task1
     task1 >> task2
-    task3 >> task3
+    task2 >> task3
