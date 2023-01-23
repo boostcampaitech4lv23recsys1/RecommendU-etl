@@ -1,9 +1,60 @@
+import os
+import sys
+sys.path.append("/opt/ml/github/RecommendU-etl")
+from crawling import utils
+from tqdm import tqdm
+
+from selenium import webdriver
+
 import airflow
 from airflow import DAG
-from airflow.operators.bash import BashOperator
+from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 
 from datetime import datetime, timedelta
+
+
+
+def crawl_link(**context):
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+
+    driver = webdriver.Chrome("/opt/ml/chromedriver", options = options)
+
+    result = utils.link_crawl(driver)
+    context['task_instance'].xcom_push(key = 'urls', value = result)
+
+
+def crawl_cover_letter(**context):
+    """
+    driver의 경우, 재선언을 해줘야한다. Selenium.webdriver는 serializable이 불가능하다.
+    """
+    root_dir = "/opt/ml/github/RecommendU-etl/crawling"
+
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+
+    driver = webdriver.Chrome("/opt/ml/chromedriver", options = options)
+    
+    urls = context['task_instance'].xcom_pull(key = 'urls')
+
+    utils.login_protocol(driver = driver)
+
+    cnt = 0
+    file_save = open(os.path.join(root_dir, "major_jobkorea_crawl.txt"), "w")
+    for url in tqdm(urls):
+        file_save = utils.self_introduction_crawl(driver, url, file_save)
+        cnt += 1
+        if cnt == 100:
+            break
+    file_save.close()
+    print("[Crawl Success]")
+
+
 
 default_args = {
     'owner': 'hwanseung2',
@@ -13,27 +64,17 @@ default_args = {
     'retry_delay': timedelta(minutes=5)  # 만약 실패하면 5분 뒤 재실행
 }
 
-with DAG(dag_id = 'etlPipeline', default_args = default_args, schedule_interval = '30 * * * *', tags = ['etltesting']) as dag:
-    task0 = BashOperator(
-        task_id = 'pwd',
-        bash_command = "pwd"
-    )
-    
-    task1 = BashOperator(
-        task_id = 'ChangeDirectory',
-        bash_command = "cd /opt/ml/github/RecommendU-etl/crawling"
-    )
-
-    task2 = BashOperator(
+with DAG(dag_id = 'ETLPipeline', default_args = default_args, schedule_interval = '0 0 * * *', tags = ['pipeline']) as dag:
+    link_crawling = PythonOperator(
         task_id = 'CrawlingLink',
-        bash_command = "python crawl_link.py"
+        python_callable = crawl_link,
+        provide_context = True
     )
 
-    task3 = BashOperator(
+    coverletter_crawling = PythonOperator(
         task_id = 'CrawlingCoverLetter',
-        bash_command = "python extract.py"
+        python_callable = crawl_cover_letter,
+        provide_context = True
     )
 
-    task0 >> task1
-    task1 >> task2
-    task2 >> task3
+    link_crawling >> coverletter_crawling

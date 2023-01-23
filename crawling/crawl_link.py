@@ -1,55 +1,69 @@
-import jobkorea
+import os
+import time
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import time
-import pandas as pd
-import os
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
-user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
 
-options = webdriver.ChromeOptions()
-options.add_argument('--headless')
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
-options.add_argument('user-agent={0}'.format(user_agent))
+def count_pages(driver:webdriver.Chrome) -> int:
+    cnt = 1
+    driver.get("https://www.jobkorea.co.kr/starter/passassay?schTxt=&Page=1")
+    driver.find_element(By.XPATH, "/html/body/div[6]/div/button").click()
+    while True:
+        print(cnt)
+        driver.implicitly_wait(5)
+        driver.get("https://www.jobkorea.co.kr/starter/PassAssay?schCType=13&schGroup=&isFilterChecked=1&Page=" + str(cnt))
+        driver.implicitly_wait(5)
+        pages = driver.find_element(By.XPATH, "/html/body/div[@id='wrap']/div[@id='container']/div[@class='stContainer']/div[@class='starListsWrap ctTarget']/div[@class='tplPagination']")
+        driver.implicitly_wait(5)
 
-driver = webdriver.Chrome("/opt/ml/chromedriver", options = options)
-jobkorea.link_crawl(driver)
+        if len(pages.find_elements(By.TAG_NAME, 'p')) == 2:
+            cnt += 10
+            continue
+        elif cnt <= 10:
+            cnt += 10
+            continue
+        else:
+            print("check")
+            print(pages.find_elements(By.TAG_NAME, 'ul'))
+            cnt += len(pages.find_elements(By.TAG_NAME, 'li'))
+            break
+    return cnt
 
-"""
-file = open('C://data/jobkorea_link.txt','r')
-result_path = "C://Users/장윤성/OneDrive - 경북대학교/바탕 화면/my Code/python/boostcamp_crawl/new_jobkorea/"
-exception_path = "C://Users/장윤성/OneDrive - 경북대학교/바탕 화면/my Code/python/boostcamp_crawl/jobkorea/"
-exception_file = os.listdir(exception_path)
-# exception_index = [1016,1944]
-# for content in exception_file:
-#     exp_tmp = content.split('.')[0]
-#     exception_index.append(int(exp_tmp)+1)
-result_dic = {}
-link_array = []
-start= 1 # 하나 담을 때 계속 예전꺼를 하나 지우고 새로 저장. 중간에 오류가 많이 남. 자소서가 없어서. -> 잡코리아가 중간중간 지워서
-cnt = 1
-while True: # 7398
-    file_url = file.readline()
-    if file_url == "":
-        break
-    link_array.append(file_url)
-jobkorea.login_protocol(driver=driver)
-for i in range(6961,len(link_array)):
-    print(i)
-    if cnt in exception_index:
-        start = cnt+1
-        os.remove(result_path+str(cnt-1)+'.tsv')
-    else:
-        frame = jobkorea.self_introduction_crawl(driver=driver,file_url=link_array[i])
-        result_dic[cnt] = frame
-        result_frame=pd.DataFrame(result_dic.values(),columns=['url','company','season','spec','questions','answers'])
-        result_frame.to_csv(result_path+str(cnt)+".tsv",sep='\t')
-        if cnt > start:
-            os.remove(result_path+str(cnt-1)+'.tsv')
-    cnt+=1
-driver.close()
 
-"""
+def link_crawl(root_dir: str, driver:webdriver.Chrome):
+    array= []
+    f = open(os.path.join(root_dir, "major_jobkorea_link.txt"),'w')
+    page_count = count_pages(driver)
+    print(f"[CHECK PAGE COUNT]: {page_count - 1}")
+
+    for page_num in range(1, page_count):
+        driver.get("https://www.jobkorea.co.kr/starter/PassAssay?schCType=13&schGroup=&isFilterChecked=1&Page=" + str(page_num))
+        paper_list = driver.find_element(By.XPATH, "/html/body/div[@id='wrap']/div[@id='container']/div[@class='stContainer']/div[@class='starListsWrap ctTarget']/ul")
+        print(paper_list)
+        driver.implicitly_wait(3)
+        urls = paper_list.find_elements(By.TAG_NAME, 'a')
+        for url in urls:
+            if 'selfintroduction' in url.get_attribute('href'):
+                pass
+            else:
+                array.append(url.get_attribute('href'))
+    array = list(set(array))
+    print(array)
+    for content in array:
+        f.write(content+'\n')
+    f.close()
+
+def main():
+    root_dir = "/opt/ml/github/RecommendU-etl/crawling"
+
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+
+    driver = webdriver.Chrome("/opt/ml/chromedriver", options = options)
+    link_crawl(root_dir, driver)
+
+if __name__ == '__main__':
+    main()

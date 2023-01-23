@@ -1,5 +1,9 @@
+import os
+import time
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+
 
 def count_pages(driver:webdriver.Chrome) -> int:
     cnt = 1
@@ -28,10 +32,10 @@ def count_pages(driver:webdriver.Chrome) -> int:
 
 
 def link_crawl(driver:webdriver.Chrome):
-    array= []
-    f = open("major_jobkorea_link.txt",'w')
+    result = []
     page_count = count_pages(driver)
-    print(f"[CHECK PAGE COUNT]: {page_count}")
+    print(f"[CHECK PAGE COUNT]: {page_count - 1}")
+
     for page_num in range(1, page_count):
         driver.get("https://www.jobkorea.co.kr/starter/PassAssay?schCType=13&schGroup=&isFilterChecked=1&Page=" + str(page_num))
         paper_list = driver.find_element(By.XPATH, "/html/body/div[@id='wrap']/div[@id='container']/div[@class='stContainer']/div[@class='starListsWrap ctTarget']/ul")
@@ -42,12 +46,14 @@ def link_crawl(driver:webdriver.Chrome):
             if 'selfintroduction' in url.get_attribute('href'):
                 pass
             else:
-                array.append(url.get_attribute('href'))
-    array = list(set(array))
-    print(array)
-    for content in array:
-        f.write(content+'\n')
-    f.close()
+                result.append(url.get_attribute('href'))
+    
+    result = list(set(result))
+    for i in range(len(result)):
+        result[i] = result[i].split("?")[0]
+
+    return result
+
 
 def login_protocol(driver:webdriver.Chrome): # 로그인해야지 로그인창때문에 크롤링 멈추는거 막을 수 있음
     driver.get("https://www.jobkorea.co.kr/")
