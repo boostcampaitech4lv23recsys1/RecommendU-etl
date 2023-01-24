@@ -5,3 +5,4 @@ webserver_config.py
 crawling/major_jobkorea_link.txt
 airflow-webserver.pid
 */__pycache__
+*/*.txt

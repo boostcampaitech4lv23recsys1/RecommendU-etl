@@ -5,6 +5,7 @@ from crawling import utils
 from tqdm import tqdm
 
 from selenium import webdriver
+import pendulum
 
 import airflow
 from airflow import DAG
@@ -12,6 +13,7 @@ from airflow.operators.python import PythonOperator
 from airflow.utils.dates import days_ago
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 
 
@@ -31,7 +33,9 @@ def crawl_cover_letter(**context):
     """
     driver의 경우, 재선언을 해줘야한다. Selenium.webdriver는 serializable이 불가능하다.
     """
-    root_dir = "/opt/ml/github/RecommendU-etl/crawling"
+    root_dir = "/opt/ml/data"
+    utc_time = pendulum.now().to_datetime_string()
+    
 
     options = webdriver.ChromeOptions()
     options.add_argument('--headless')
@@ -45,7 +49,9 @@ def crawl_cover_letter(**context):
     utils.login_protocol(driver = driver)
 
     cnt = 0
-    file_save = open(os.path.join(root_dir, "major_jobkorea_crawl.txt"), "w")
+    fpath = Path(os.path.join(root_dir, utc_time, "major_jobkorea_crawl.txt"))
+    fpath.parent.mkdir(parents = True, exist_ok = True)
+    file_save = open(str(fpath), "w")
     for url in tqdm(urls):
         file_save = utils.self_introduction_crawl(driver, url, file_save)
         cnt += 1
@@ -56,15 +62,18 @@ def crawl_cover_letter(**context):
 
 
 
+
+local_tz = pendulum.timezone("Asia/Seoul")
+
 default_args = {
     'owner': 'hwanseung2',
     'depends_on_past': False,  # 이전 DAG의 Task가 성공, 실패 여부에 따라 현재 DAG 실행 여부가 결정. False는 과거의 실행 결과 상관없이 매일 실행한다
-    'start_date': days_ago(2), #datetime(2023, 1, 20),
+    'start_date': datetime(2023, 1, 24, 9, tzinfo=local_tz), #datetime(2023, 1, 20),
     'retires': 5,
     'retry_delay': timedelta(minutes=5)  # 만약 실패하면 5분 뒤 재실행
 }
 
-with DAG(dag_id = 'ETLPipeline', default_args = default_args, schedule_interval = '0 0 * * *', tags = ['pipeline']) as dag:
+with DAG(dag_id = 'ETLPipeline', default_args = default_args, schedule_interval = '55 9 * * *', tags = ['pipeline']) as dag:
     link_crawling = PythonOperator(
         task_id = 'CrawlingLink',
         python_callable = crawl_link,
