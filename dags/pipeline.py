@@ -54,9 +54,7 @@ def crawl_cover_letter(**context):
     file_save = open(str(fpath), "w")
     for url in tqdm(urls):
         file_save = utils.self_introduction_crawl(driver, url, file_save)
-        cnt += 1
-        if cnt == 100:
-            break
+        
     file_save.close()
     print("[Crawl Success]")
 
