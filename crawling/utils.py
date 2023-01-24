@@ -77,6 +77,13 @@ def self_introduction_crawl(driver:webdriver.Chrome, file_url, file):
         specification=driver.find_element(By.CLASS_NAME,'specLists')
         spec_array = specification.text.split('\n')
 
+        advice = driver.find_elements(By.CLASS_NAME, 'adviceTotal')
+        advice_check = False
+
+        if advice:
+            advice_score = int(advice[0].find_element(By.CLASS_NAME, "grade").text)
+            advice_check = True
+
         paper = driver.find_element(By.CLASS_NAME,"qnaLists")
         questions = paper.find_elements(By.TAG_NAME,'dt')
         questions_list = []
@@ -87,6 +94,8 @@ def self_introduction_crawl(driver:webdriver.Chrome, file_url, file):
                 question = index.find_element(By.CLASS_NAME,'tx')
             questions_list.append(question)
 
+
+
         answers = paper.find_elements(By.TAG_NAME,'dd')
         driver.implicitly_wait(3)
         print(f"[URL]: {file_url}")
@@ -94,6 +103,8 @@ def self_introduction_crawl(driver:webdriver.Chrome, file_url, file):
         print(f"[SEASON]: {season.text}")
         print(f"[SPEC]: {spec_array}")
         print(f"[VIEW]: {spec_array[-2].replace(',', '')}")
+        if advice_check:
+            print(f"[ADVICE_SCORE]: {advice_score}")
         
 
         file.write(f"<<start>>\n")
@@ -102,6 +113,8 @@ def self_introduction_crawl(driver:webdriver.Chrome, file_url, file):
         file.write(f"<season>{season.text}</season>\n")
         file.write(f"<spec>{spec_array}</spec>\n")
         file.write(f"<view>{spec_array[-2].replace(',', '')}</view>\n")
+        if advice_check:
+            file.write(f"<advice_score>{advice_score}</advice_score>\n")
 
         for index in range(len(answers)):
             answer =answers[index].find_element(By.CLASS_NAME,'tx')
@@ -110,8 +123,16 @@ def self_introduction_crawl(driver:webdriver.Chrome, file_url, file):
                 answer = answers[index].find_element(By.CLASS_NAME,'tx')
             print(f"[QUESTION - {index + 1}]: {questions_list[index].text}")
             print(f"[ANSWER - {index + 1}]: {answer.text}\n")
+
+            bad = answers[index].find_elements(By.CLASS_NAME, "bad")
+            good = answers[index].find_elements(By.CLASS_NAME, "good")
+            print("BAD:",len(bad)//2)
+            print("GOOD:",len(good)//2)
+            
             file.write(f"<tag_q>{questions_list[index].text}</tag_q>\n")
             file.write(f"<tag_a>{answer.text}</tag_a>\n")
+            file.write(f"<tag_bad>{len(bad)//2}</tag_bad>\n")
+            file.write(f"<tag_good>{len(good)//2}</tag_good>\n")
         print("-" * 250)
         print('\n\n\n')
         
