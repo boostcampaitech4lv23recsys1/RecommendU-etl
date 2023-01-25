@@ -1,0 +1,8 @@
+logs
+airflow.cfg
+airflow.db
+webserver_config.py
+crawling/*.txt
+airflow-webserver.pid
+*/__pycache__
+*/*.txt
