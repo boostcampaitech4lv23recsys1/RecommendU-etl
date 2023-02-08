@@ -48,15 +48,12 @@ def crawl_cover_letter(**context):
 
     utils.login_protocol(driver = driver)
 
-    cnt = 0
     fpath = Path(os.path.join(root_dir, utc_time, "major_jobkorea_crawl.txt"))
     fpath.parent.mkdir(parents = True, exist_ok = True)
     file_save = open(str(fpath), "w")
     for url in tqdm(urls):
         file_save = utils.self_introduction_crawl(driver, url, file_save)
-        cnt += 1
-        if cnt == 100:
-            break
+        
     file_save.close()
     print("[Crawl Success]")
 
