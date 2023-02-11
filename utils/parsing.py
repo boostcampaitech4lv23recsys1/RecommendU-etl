@@ -76,7 +76,7 @@ def _preprocess(documents, n, db, processed_dict):
         db['extra_spec'].append(extra_spec)
         db['pro_rating'].append(doc_score)
         db['question'].append(question)
-        db['new_answer'].append(answer)
+        db['answer'].append(answer)
         db['doc_url'].append(doc_url)
         db['doc_view'].append(doc_view)
         db['pro_good_cnt'].append(tag_good)
