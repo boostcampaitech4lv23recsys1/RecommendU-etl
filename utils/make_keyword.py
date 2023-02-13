@@ -78,7 +78,7 @@ def answer_keybert_check(trans, result, exp_list):
 
 
 if __name__ == '__main__':
-    data = pd.read_csv("/opt/ml/data/jk_answers_without_samples_3_4.csv")
+    data = pd.read_csv("/opt/ml/data/test.csv")
     translator = Translator()
     keybert = KeyBERT()  
 
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         trans, new_null = answer_trans_check(trans,null)
         null = new_null
 
-    with open("translate.pkl","wb") as f:
+    with open("../pickle/translate.pkl","wb") as f:
         pickle.dump(trans, f)
 
     result, exp_list = answer_keybert(trans)
@@ -97,5 +97,7 @@ if __name__ == '__main__':
         trans, result, new_exp_list = answer_keybert_check(trans, result, exp_list)
         exp_list = new_exp_list
 
-    with open("keybert.pkl","wb") as f:
+    ### result : 태그로 요약된 값
+    with open("../pickle/keybert.pkl","wb") as f:
         pickle.dump(result, f)
+    
