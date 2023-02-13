@@ -5,10 +5,6 @@ import pandas as pd
 from tqdm import tqdm
 from keybert import KeyBERT
 
-data = pd.read_csv("/opt/ml/data/jk_answers_without_samples_3_4.csv")
-translator = Translator()
-keybert = KeyBERT()
-
 def answer_translate():  
     trans = []
     null_trans = []
@@ -81,21 +77,25 @@ def answer_keybert_check(trans, result, exp_list):
     return trans, result, new_exp_list
 
 
-### for test    
-trans, null = answer_translate()
+if __name__ == '__main__':
+    data = pd.read_csv("/opt/ml/data/jk_answers_without_samples_3_4.csv")
+    translator = Translator()
+    keybert = KeyBERT()  
 
-while null:
-    trans, new_null = answer_trans_check(trans,null)
-    null = new_null
+    trans, null = answer_translate()
 
-with open("test_translate.pkl","wb") as f:
-    pickle.dump(trans, f)
+    while null:
+        trans, new_null = answer_trans_check(trans,null)
+        null = new_null
 
-result, exp_list = answer_keybert(trans)
+    with open("translate.pkl","wb") as f:
+        pickle.dump(trans, f)
 
-while exp_list:
-    trans, result, new_exp_list = answer_keybert_check(trans, result, exp_list)
-    exp_list = new_exp_list
+    result, exp_list = answer_keybert(trans)
 
-with open("test_keybert.pkl","wb") as f:
-    pickle.dump(result, f)
+    while exp_list:
+        trans, result, new_exp_list = answer_keybert_check(trans, result, exp_list)
+        exp_list = new_exp_list
+
+    with open("keybert.pkl","wb") as f:
+        pickle.dump(result, f)
