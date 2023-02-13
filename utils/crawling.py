@@ -34,8 +34,7 @@ def count_pages(driver:webdriver.Chrome) -> int:
 
 def link_crawl(driver:webdriver.Chrome):
     result = []
-    # page_count = count_pages(driver)
-    page_count = 2
+    page_count = count_pages(driver)
     print(f"[CHECK PAGE COUNT]: {page_count - 1}")
 
     for page_num in range(1, page_count):

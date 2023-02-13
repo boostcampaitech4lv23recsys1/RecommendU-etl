@@ -74,8 +74,7 @@ def crawl_cover_letter(**context):
     fpath = Path(os.path.join(root_dir, "major_jobkorea_crawl.txt"))
     fpath.parent.mkdir(parents = True, exist_ok = True)
     file_save = open(str(fpath), "w")
-    #TODO: :5 지우기
-    for url in tqdm(urls[:5]):
+    for url in tqdm(urls):
         file_save = crawling.self_introduction_crawl(driver, url, file_save)
         
     file_save.close()
