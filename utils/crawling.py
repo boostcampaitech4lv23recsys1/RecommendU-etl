@@ -58,8 +58,8 @@ def link_crawl(driver:webdriver.Chrome):
 def login_protocol(driver:webdriver.Chrome): # 로그인해야지 로그인창때문에 크롤링 멈추는거 막을 수 있음
     driver.get("https://www.jobkorea.co.kr/")
     driver.find_element(By.XPATH,"/html/body/div[5]/div/div[1]/div[1]/ul/li[1]/button").click()
-    driver.find_element(By.ID,"lb_id").send_keys("wazs555")
-    driver.find_element(By.ID,"lb_pw").send_keys("wanynu78!")
+    driver.find_element(By.ID,"lb_id").send_keys("id")
+    driver.find_element(By.ID,"lb_pw").send_keys("password")
     driver.find_element(By.XPATH,"/html/body/div[5]/div/div[1]/div[1]/ul/li[1]/div/form/fieldset/div[1]/button").click()
     driver.implicitly_wait(3)
 
