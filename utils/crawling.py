@@ -1,9 +1,10 @@
 import os
 import time
+# from dotenv import load_dotenv
 
+from utils.api import load_document
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-
 
 def count_pages(driver:webdriver.Chrome) -> int:
     cnt = 1
@@ -33,7 +34,8 @@ def count_pages(driver:webdriver.Chrome) -> int:
 
 def link_crawl(driver:webdriver.Chrome):
     result = []
-    page_count = count_pages(driver)
+    # page_count = count_pages(driver)
+    page_count = 2
     print(f"[CHECK PAGE COUNT]: {page_count - 1}")
 
     for page_num in range(1, page_count):
@@ -55,11 +57,21 @@ def link_crawl(driver:webdriver.Chrome):
     return result
 
 
+def drop_duplicates(crawled_links):
+    db_document = load_document()
+
+    db_links = set(db_document['document_url'])
+    crawled_links = set(crawled_links)
+    result = list(crawled_links - db_links)
+
+    return result
+
+
 def login_protocol(driver:webdriver.Chrome): # 로그인해야지 로그인창때문에 크롤링 멈추는거 막을 수 있음
     driver.get("https://www.jobkorea.co.kr/")
     driver.find_element(By.XPATH,"/html/body/div[5]/div/div[1]/div[1]/ul/li[1]/button").click()
-    driver.find_element(By.ID,"lb_id").send_keys("id")
-    driver.find_element(By.ID,"lb_pw").send_keys("password")
+    driver.find_element(By.ID,"lb_id").send_keys(os.environ.get('jk_id'))
+    driver.find_element(By.ID,"lb_pw").send_keys(os.environ.get('jk_pwd'))
     driver.find_element(By.XPATH,"/html/body/div[5]/div/div[1]/div[1]/ul/li[1]/div/form/fieldset/div[1]/button").click()
     driver.implicitly_wait(3)
 

@@ -4,6 +4,8 @@ import pickle
 import pandas as pd
 from collections import defaultdict
 
+from utils.api import load_document, load_answer
+
 PATTERN_URL = r"<url>(.*?)</url>"
 PATTERN_COMPANY = r"<company>(.*?)</company>"
 PATTERN_SEASON = r"<season>(.*?)</season>"
@@ -35,8 +37,10 @@ def _preprocess(documents, n, db, processed_dict):
     else:
         raw = spec[1]
         extra_spec = spec[2:-2]
+    
+    extra_spec = [season] + extra_spec
 
-    if major_raw2small_dict.get(raw) != None:
+    if processed_dict['major_raw2small'].get(raw) != None:
         major_small = processed_dict['major_raw2small'][raw]
     else:
         major_small = "기타"
@@ -69,7 +73,7 @@ def _preprocess(documents, n, db, processed_dict):
         db['major_large'].append(major_large)
         db['major_small'].append(major_small)
         db['company'].append(company)
-        db['season'].append(season)
+        # db['season'].append(season)
         db['job_large'].append(job_large)
         db['job_small'].append(job_small)
         db['school'].append(school)
@@ -84,6 +88,65 @@ def _preprocess(documents, n, db, processed_dict):
     
     return db
 
+def handle_company(x):
+    x = ''.join(x.split(' '))
+    for case in ['(주)', '(학)', '(유)', '㈜', '\t']:
+        x = x.replace(case, '')
+    return x
+
+
+def process_company(df):
+    df['company'] = df['company'].apply(handle_company)
+    return df
+
+
+def handle_doc_id(x):
+    name = 'd' + format(x, '06')
+    return name
+
+def handle_ans_id(x):
+    name = 'a' + format(x, '06')
+    return name
+
+
+def add_numbering(df):
+    db_document = load_document()
+    db_answer = load_answer()
+
+    db_document['new_id'] = db_document['document_id'].apply(lambda x: int(x[1:]))
+    max_doc_id = db_document['new_id'].max()
+    db_answer['new_id'] = db_answer['answer_id'].apply(lambda x: int(x[1:]))
+    max_ans_id = db_answer['new_id'].max()
+
+    grouped = df.groupby('doc_url')
+    df['doc_id'] = grouped.ngroup() + max_doc_id + 1
+    df['answer_id'] = df.reset_index().index + max_ans_id + 1
+
+    df['doc_id'] = df['doc_id'].apply(handle_doc_id)
+    df['answer_id'] = df['answer_id'].apply(handle_ans_id)
+    return df
+
+
+def encode_db_format(df, encoder):
+    categories = ['joblarge', 'jobsmall', 'majorlarge', 'majorsmall', 'company', 'school']
+    columns = ['job_large', 'job_small', 'major_large', 'major_small', 'company', 'school']
+
+    for name, column in zip(categories, columns):
+        #TODO: 먼저 key에 값이 존재하지 않는 경우를 먼저 확인하고, key에 값이 존재하지 않는다면 기타로 바꾼다.
+        #TODO: 이후 기타를 포함한 값을 dictionary를 통해서 인코딩한다.
+        keys_ = list(encoder[name].keys())
+        df[column] = df[column].apply(lambda x: "기타" if x not in keys_ else x)
+        df[column] = df[column].map(encoder[name])
+    
+    return df
+
+def split_doc_ans(df):
+    document = df[['doc_id', 'major_large', 'major_small', 'company', 'job_large', 'job_small', 'school', 'extra_spec', 'pro_rating', 'doc_url']]
+    answer = df[['doc_id', 'answer_id', 'question', 'answer', 'doc_url', 'doc_view', 'pro_rating', 'pro_good_cnt', 'pro_bad_cnt']]
+
+    document = document.drop_duplicates()
+    
+    return document, answer
 
 if __name__ == '__main__':
     with open("/opt/ml/data/major_raw2small.pkl", 'rb') as f:
@@ -110,7 +173,21 @@ if __name__ == '__main__':
     for n in range(len(documents)):
         db = _preprocess(documents, n, db, processed_dict)
     result = pd.DataFrame(db)
-
     print("[SUCESS PARSING]")
-    print(result.shape)
     result.to_csv("/opt/ml/output/temp_parsed_data.csv", index = False)
+    
+    result = process_company(result)
+    print("[SUCESS HANDLING COMPANY]")
+    result = add_numbering(result)
+    print("[SUCESS NUMBERING]")
+    print(result.shape)
+
+    encoder_path = "/opt/ml/github/RecommendU-etl/pickle/feature_categories.pkl"
+    with open(encoder_path, 'rb') as f:
+        encoder = pickle.load(f)
+    
+    
+
+    document, answer = split_doc_ans(result)
+    document.to_csv("/opt/ml/output/splitted_document.csv", index = False)
+    answer.to_csv("/opt/ml/output/splitted_answer.csv", index = False)

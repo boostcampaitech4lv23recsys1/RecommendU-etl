@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 from keybert import KeyBERT
 
-def answer_translate():  
+def answer_translate(data, translator):  
     trans = []
     null_trans = []
     for row, value in tqdm(data.iterrows()):
@@ -19,7 +19,7 @@ def answer_translate():
     
     return trans, null_trans
 
-def answer_trans_check(trans, null_trans):
+def answer_trans_check(data, trans, null_trans, translator):
     new_null = []
     for idx in null_trans:
         try:
@@ -31,7 +31,7 @@ def answer_trans_check(trans, null_trans):
     
     return trans, new_null
 
-def answer_keybert(trans):
+def answer_keybert(trans, keybert, translator):
     result = []
     exp_list = []
     for idx in range(len(trans)):
@@ -46,7 +46,7 @@ def answer_keybert(trans):
                 keyword = text.text
                 if (keyword in temp) or (keyword[-1] == "다"):
                     continue
-                temp.append(keyword)
+                temp.append('#' + keyword)
                 count+=1
             except:
                 exp_list.append(idx)
@@ -54,7 +54,7 @@ def answer_keybert(trans):
     
     return result, exp_list
 
-def answer_keybert_check(trans, result, exp_list):
+def answer_keybert_check(trans, result, exp_list, keybert, translator):
     new_exp_list = []
     for idx in exp_list:
         keywords = keybert.extract_keywords(trans[idx], keyphrase_ngram_range=(1, 1), stop_words='english', top_n=5)
@@ -68,13 +68,22 @@ def answer_keybert_check(trans, result, exp_list):
                 keyword = text.text
                 if (keyword in temp) or (keyword[-1] == "다"):
                     continue
-                temp.append(keyword)
+                temp.append('#' + keyword)
                 count+=1
             except:
                 new_exp_list.append(idx)
         result[idx] = temp
     
     return trans, result, new_exp_list
+
+def tag_hash(x):
+    return_string = ""
+    parsed = x.split(',')
+    for content in parsed:
+        content = content.strip()[1:-1]
+        content = '#'+content
+        return_string += content + " "
+    return return_string
 
 
 if __name__ == '__main__':

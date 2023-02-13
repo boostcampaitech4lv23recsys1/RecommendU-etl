@@ -6,3 +6,5 @@ crawling/*.txt
 airflow-webserver.pid
 */__pycache__
 */*.txt
+.env
+pickle/
