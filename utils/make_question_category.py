@@ -26,7 +26,9 @@ def make_achieve_query(result, string):
 
 def insert_category(content_array, x):
     if x not in content_array.keys():
-        return 'x'
+        temp = []
+        temp.append(1000022)
+        return temp
     else:
         return content_array[x]
     
