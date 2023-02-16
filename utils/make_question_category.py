@@ -31,6 +31,19 @@ def insert_category(content_array, x):
         return temp
     else:
         return content_array[x]
+
+
+def types2category(x):
+    try:
+        temp = x.split(",")
+        temp = list(map(lambda x: int(x[1:]), temp))
+        temp = list(map(str, temp))
+        temp = ",".join(temp)
+        result = "[" + temp + "]"
+    except:
+        result = "[22]"
+    return result
+
     
     
 if __name__ == '__main__':

@@ -7,7 +7,7 @@ import pymysql
 from dotenv import load_dotenv
 
 sys.path.append("/opt/ml/github/RecommendU-etl")
-from utils import crawling, parsing, make_question_category, make_keyword, make_embedding
+from utils import crawling, parsing, make_question_category, make_keyword, make_embedding, api
 from tqdm import tqdm
 import pickle
 import numpy as np
@@ -33,6 +33,7 @@ from transformers import AutoTokenizer, AutoModel
 
 BASE_DIR = "."
 load_dotenv()
+
 
 def crawl_link(**context):
     options = webdriver.ChromeOptions()
@@ -65,7 +66,6 @@ def crawl_cover_letter(**context):
     options.add_argument('--disable-dev-shm-usage')
 
     driver = webdriver.Chrome("/opt/ml/chromedriver", options = options)
-    
     urls = context['task_instance'].xcom_pull(key = 'new_urls')
 
     crawling.login_protocol(driver)
@@ -252,17 +252,17 @@ def load_to_mysql(**context):
     document = pd.read_csv("/opt/ml/airflow_data/final_document.csv")
     answer = pd.read_csv("/opt/ml/airflow_data/final_answer.csv")
 
-    #document_id,document_url,spec,pro_rating,company_id,job_small_id,major_small_id,school_id
-    # doc_id,major_large,major_small,company,job_large,job_small,school,extra_spec,pro_rating,doc_url
     document = document[['doc_id', 'doc_url', 'extra_spec', 'pro_rating', 'company', 'job_small', \
                             'major_small', 'school']]
     
-    # answer_id,content,question,user_good_cnt,user_bad_cnt,pro_good_cnt,pro_bad_cnt,summary,view,user_view,document_id,user_impression_cnt
-    # doc_id,answer_id,question,answer,doc_url,doc_view,pro_rating,pro_good_cnt,pro_bad_cnt
     answer['user_good_cnt'] = np.zeros(answer.shape[0])
     answer['user_bad_cnt'] = np.zeros(answer.shape[0])
     answer['user_view'] = np.zeros(answer.shape[0])
     answer['user_impression_cnt'] = np.zeros(answer.shape[0])
+
+    ques_types = answer[['answer_id', 'question_category']]
+    ques_types['question_category'] = ques_types['question_category'].apply(lambda x: x[1:-1])
+    insert_category_sql = "insert into services_answer_question_types (answer_id,questiontype_id) values (%s,%s)"
 
     answer = answer[['answer_id', 'answer','question', 'user_good_cnt', 'user_bad_cnt', \
                         'pro_good_cnt', 'pro_bad_cnt', 'summary', 'doc_view', 'user_view',\
@@ -275,6 +275,7 @@ def load_to_mysql(**context):
     insert_answer_sql = "insert into services_answer (answer_id,content,question,user_good_cnt,user_bad_cnt,pro_good_cnt,pro_bad_cnt,summary,view,user_view,document_id,user_impression_cnt) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
     insert_document_sql = "insert into services_document (document_id,document_url,spec,pro_rating,company_id,job_small_id,major_small_id,school_id) values (%s, %s, %s, %s, %s, %s, %s, %s)"
     
+
     cur = connect.cursor()
     for i in range(len(document)):
         array = list(document.iloc[i])
@@ -287,7 +288,65 @@ def load_to_mysql(**context):
         cur.execute(insert_answer_sql, array)
 
     connect.commit()
+
+    for i in range(len(ques_types)):
+        answer_id, ques_categs = ques_types.iloc[i]
+        ques_categs = ques_categs.split(",")
+        for ques in ques_categs:
+            array = [answer_id, ques]
+            cur.execute(insert_category_sql, array)
+    connect.commit()
     connect.close()
+
+
+def save_refresh_mldata(**context):
+    refresh_document = api.load_refresh_document()
+    refresh_answer = api.load_refresh_answer()
+    origin_document = api.load_document()
+    origin_answer = api.load_answer()
+    
+
+    # Load MySQL new document
+    refresh_document.rename(columns = {"document_id": "doc_id", "schooltype": "school", "spec": "extra_spec"}, inplace = True)
+    refresh_document['doc_id'] = refresh_document['doc_id'].apply(lambda x: int(x[1:]))
+    refresh_document['season'] = refresh_document["extra_spec"].apply(lambda x: x.split(',')[0][1:].replace("'", ""))
+    refresh_document['extra_spec'] = refresh_document['extra_spec'].apply(lambda x: '[' + ','.join(x.split(',')[1:]))
+    refresh_document = refresh_document[['doc_id', 'major_large', 'major_small', 'company', "season", 'job_large', 'job_small', 'school', 'extra_spec', \
+                                'pro_rating', 'document_url']]
+    
+    # Load MySQL new answer
+    refresh_answer = refresh_answer[['document_id', 'answer_id', 'question', 'content', 'document_url', 'summary', 'question_types', 'view', \
+                        'pro_rating', 'pro_good_cnt', 'pro_bad_cnt']]
+    refresh_answer.rename(columns = {"document_id": "doc_id", "content": "answer", "document_url": "doc_url", \
+                            "question_types": "question_category", "view": "doc_view", "pro_rating": "doc_score"}, inplace = True)
+    
+    refresh_answer['doc_id'] = refresh_answer['doc_id'].apply(lambda x: int(x[1:]))
+    refresh_answer['answer_id'] = refresh_answer['answer_id'].apply(lambda x: int(x[1:]))
+    refresh_answer['question_category'] = refresh_answer['question_category'].apply(make_question_category.types2category)
+
+    origin_answer = origin_answer[['answer_id', 'document_id','pro_good_cnt', 'pro_bad_cnt', 'view']]
+    origin_document = origin_document[['document_id', 'company', 'job_small']]
+    input_answers = pd.merge(origin_answer,  origin_document, how = 'left', on = 'document_id')
+    input_answers.rename(columns = {"answer_id":"answer", "document_id":"document", "pro_good_cnt": "answer_pro_good_cnt",\
+                                    "pro_bad_cnt": "answer_pro_bad_cnt", "view": "doc_view", 
+                                        "company":"doc_company_id", "job_small": "doc_job_small_id"}, inplace = True)
+
+    refresh_document.to_csv("/opt/ml/airflow_data/refresh_document.csv", index = False)
+    refresh_answer.to_csv("/opt/ml/airflow_data/refresh_answer.csv", index = False)
+    input_answers.to_csv("/opt/ml/airflow_data/input_answers.csv", index = False)
+
+
+def send_refresh_data(**context):
+    from_path = "/opt/ml/airflow_data/"
+    to_path = "http://www.recommendu.kro.kr:30001/services/save_refresh/"
+    input_refresh = open(from_path + 'input_answers.csv','rb')
+    answer_refresh = open(from_path + 'refresh_answer.csv','rb')
+    document_refresh = open(from_path + 'refresh_document.csv','rb')
+    upload = {'input':input_refresh,'document':document_refresh,'answer':answer_refresh}
+    res = requests.post(to_path, files = upload)
+    print('send complete')
+
+    
 
 
 
@@ -372,14 +431,20 @@ with DAG(dag_id = 'ETLPipeline', default_args = default_args, schedule_interval 
         provide_context = True
     )
 
+    save_mldata = PythonOperator(
+        task_id = 'SaveMLData',
+        python_callable = save_refresh_mldata,
+        provide_context = True
+    )
+
+    send_web = PythonOperator(
+        task_id = 'SendWebMLData',
+        python_callable = send_refresh_data,
+        provide_context = True
+    )
+
 
     link_crawling >> load_new_urls >> coverletter_crawling >> parse >> handling_data
     handling_data >> [ques_categ, keyword, embed] >> dummy
     dummy >> [merged, send]
-    merged >> load
-
-
-    # [ques_categ, keyword, embed] >> dummy
-    # ques_categ >> dummy
-    # keyword >> dummy
-    # embed >> dummy
+    merged >> load >> save_mldata >> send_web

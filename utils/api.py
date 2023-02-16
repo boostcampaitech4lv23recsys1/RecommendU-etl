@@ -43,3 +43,15 @@ def load_recommendlog():
     content = json.loads(response.text)
     result = pd.DataFrame(content)
     return result
+
+def load_refresh_document():
+    response = requests.get("http://www.recommendu.kro.kr:30001/services/document_refresh")
+    content = json.loads(response.text)
+    result = pd.DataFrame(content)
+    return result
+
+def load_refresh_answer():
+    response = requests.get("http://www.recommendu.kro.kr:30001/services/answer_refresh")
+    content = json.loads(response.text)
+    result = pd.DataFrame(content)
+    return result
