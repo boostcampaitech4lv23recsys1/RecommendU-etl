@@ -8,3 +8,4 @@ airflow-webserver.pid
 */*.txt
 .env
 pickle/
+.DS_Store
